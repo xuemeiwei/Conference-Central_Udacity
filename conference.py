@@ -441,7 +441,69 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(session)
                                    for session in Sessions])
 
+
+
+    @endpoints.method(SESSION_REQUEST, SessionForm,
+                  path='addSessionToWishlist',
+                  http_method='POST', name='addSessionToWishlist')
+    def addSessionToWishlist(self, request):
+        """Add sessions of interest to wishlist"""
+        # Get session key
+        s_Key = request.sessionKey
+        # Get session object
+        session = ndb.Key(urlsafe=s_Key).get()
+        # Check the validity of session
+        if not session:
+            raise endpoints.NotFoundException('No session is found')
+        # Check the validity of user
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        profile = self._getProfileFromUser()
+        if not profile:
+            raise endpoints.BadRequestException('Profile does not exist for user')
+        # Check key and Session
+        if not type(ndb.Key(urlsafe=sessionKey).get()) == Session:
+            raise endpoints.NotFoundException('This key is not a Session instance')
+        # Add session to wishlist
+        if sessionKey not in profile.sessionKeysInWishlist:
+            try:
+                profile.sessionKeysInWishlist.append(sessionKey)
+                profile.put()
+            except Exception:
+                raise endpoints.InternalServerErrorException('Error in storing the wishlist')
+        return self._copySessionToForm(session)
     
+    @endpoints.method(message_types.VoidMessage,SessionForms,
+                      path='getSessionsInWishlist', http_method='GET',
+                      name='getSessionsInWishlist')
+    def getSessionsInWishlist(self,request):
+        """Query all the sessions in a conference that the user is interested in."""
+        profile = self._getProfileFromUser()
+        if not profile:
+            raise endpoints.BadRequestException('Profile does not exist for user')
+        # Get all session keys
+        sessionkeys = [ndb.Key(urlsafe=sessionkey) for sessionkey in profile.sessionKeysInWishlist]
+        sessions = ndb.get_multi(sessionkeys)
+        # Return set of SessionForm objects per conference
+        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
+
+
+    @endpoints.method(message_types.VoidMessage,BooleanMessage,
+                  path='clearData', http_method='GET',
+                  name='clearData')
+    def clearData(self,request):
+        """Clear all the data saved."""
+        ndb.delete_multi(Session.query().fetch(keys_only = True))
+        ndb.delete_multi(Conference.query().fetch(keys_only = True))
+        profiles = Profile.query()
+        for profile in profiles:
+            profile.conferenceKeysToAttend = []
+            profile.sessionKeysInWishlist = []
+            profile.put()
+        return  BooleanMessage(data=True)
+
+
 
 
 
