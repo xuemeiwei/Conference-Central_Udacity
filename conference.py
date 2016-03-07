@@ -441,6 +441,32 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(session)
                                    for session in Sessions])
 
+    @endpoints.method(CONF_GET_REQUEST, ProfileForms,
+                  path='/getAttendeesByConference/{websafeConferenceKey}',
+                  http_method='GET', name='getAttendeesByConference')
+    def getAttendeesByConference(self, request):
+        """Return all attendees of a given conference"""
+        profiles = Profile.query()
+        attendees = []
+        for pro in profiles:
+            if request.websafeConferenceKey in pro.conferenceKeysToAttend:
+                attendees.append(pro)
+        return ProfileForms(items=[self._copyProfileToForm(attendee)
+                                   for attendee in attendees])
+    
+    @endpoints.method(SESSION_REQUEST, ProfileForms,
+                      path='/getAttendeesBySession/{sessionKey}',
+                      http_method='GET', name='GetAttendeesBySession')
+    def getAttendeesBySession(self, request):
+        """Return all attendees of a given session"""
+        s_Key = request.sessionKey
+        profiles = Profile.query()
+        attendees = []
+        for pro in profiles:
+            if s_Key in pro.sessionKeysInWishlist:
+                attendees.append(pro)
+        return ProfileForms(items=[self._copyProfileToForm(attendee)
+                                    for attendee in attendees])
 
 
     @endpoints.method(SESSION_REQUEST, SessionForm,
