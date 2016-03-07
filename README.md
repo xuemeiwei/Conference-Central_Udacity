@@ -30,9 +30,7 @@ This project mainly contains four following tasks.
 
 ## Task 1: Add Sessions to a Conference
 1. Session and SessionForm are defined in models.py as follows:
-   1. Session class 
-	- Created as `ndb.Model`.
- 	- Has the following attributes:
+   - Session class is created as `ndb.Model` and has the following attributes:
 	```python
 	class Session(ndb.Model):
 		"""Session -- Session object"""
@@ -45,9 +43,7 @@ This project mainly contains four following tasks.
 		startTime = ndb.TimeProperty() 
 		websafeConferenceKey =  ndb.StringProperty()
 	```
-   2. SessionForm class
-	- Created as `messages.Message`.
-	- Has the  attributes corresponding the ones in Session Model but sessionSafeKey is added. 	
+   - SessionForm class is created as `messages.Message` and has the corresponding attributes in Session Model but sessi     onSafeKey is added. 	
 	```python
 	class SessionForm(messages.Message):
 		"""SessionForm -- Session outbound form message"""
