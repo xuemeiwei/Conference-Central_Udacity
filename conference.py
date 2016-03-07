@@ -328,6 +328,75 @@ class ConferenceApi(remote.Service):
         )
 
 
+# - - - Session objects - - - - - - - - - - - - - - - - - - -
+    def _copySessionToForm(self, session):
+        """Copy relevant fields from Session to SessionForm."""
+        sf = SessionForm()
+        for field in sf.all_fields():
+            if hasattr(session, field.name):
+                # convert Date to date string; just copy others
+                if field.name.endswith('date') or field.name.endswith('startTime'):
+                    setattr(sf, field.name, str(getattr(session, field.name)))
+                else:
+                    setattr(sf, field.name, getattr(session, field.name))
+            elif field.name == "sessionSafeKey":
+                setattr(sf, field.name, session.key.urlsafe())
+        sf.check_initialized()
+        return sf
+
+    def _createSessionObject(self, request):
+        """Create session object"""
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+        if not request.name:
+            raise endpoints.BadRequestException('Session name is required')
+        # Get conference object
+        c_key = ndb.Key(urlsafe=request.websafeConferenceKey)
+        conf = c_key.get()
+        # Check the validity of conference
+        if not conf:
+            raise endpoints.NotFoundException('No conference is found')
+        # Check the validity of user
+        if conf.organizerUserId != getUserId(endpoints.get_current_user()):
+            raise endpoints.ForbiddenException('Only the organizer can create a session.')
+        # Copy SessionForm
+        data = {field.name:getattr(request, field.name) for field in request.all_fields()}
+        # Convert date and time from strings to Date objects;
+        if data['date']:
+            data['date'] = datetime.strptime(data['date'][:10], "%Y-%m-%d").date()
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime'][:10],  "%H, %M").time()
+        # Assign each session with Conference as parent
+        s_id = Session.allocate_ids(size=1, parent=c_key)[0]
+        s_key = ndb.Key(Session, s_id, parent=c_key)
+        data['Key'] = s_key
+        data['websafeConferenceKey'] = request.websafeConferenceKey
+        del data['sessionSafeKey']
+        
+        # Save session into database
+        Session(**data).put()
+        # Send confirmation email to owner
+        taskqueue.add(params={'email':user.email(),
+                      'conferenceInfo': repr(request)},
+                      url='/tasks/send_Confirmation_session_email'
+                      )
+        return request
+
+    @endpoints.method(SessionForm, SessionForm,
+                      path='createSession',
+                      http_method='POST',
+                      name='createSession')
+    def createSession(self, request):
+        """Create a session in a given conference; Open only to organizer"""
+        return self._createSessionObject(request)
+
+
+
+
+
+
 # - - - Profile objects - - - - - - - - - - - - - - - - - - -
 
     def _copyProfileToForm(self, prof):
