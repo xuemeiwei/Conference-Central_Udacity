@@ -393,7 +393,55 @@ class ConferenceApi(remote.Service):
         return self._createSessionObject(request)
 
 
+    @endpoints.method(CONF_GET_REQUEST, SessionForms,
+                  path='conference/{websafeConferenceKey}/sessions',
+                  http_method='GET', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        """Given a conference return all sessions"""
+        # Get conference key
+        wsck = request.websafeConferenceKey
+        # Fetch conference with target key
+        conf = ndb.Key(urlsage=wsck).get()
+        # Check validity of conference
+        if not conf:
+            raise endpoints.NotFoundException('No conference is found')
+        
+        # Create query for this conference
+        Sessions = Session.query().filter(Session.websafeConferenceKey==wsck)
+        # Return set of SessionForm objects for each conference
+        return SessionForms(items=[self._copySessionToForm(session)
+                                   for session in Sessions])
+    
+    @endpoints.method(SESSION_GET_REQUEST, SessionForms,
+                      path='conference/{websafeConferenceKey}/sessions/{typeOfSession}',
+                      http_method='GET', name='getConferenceSessionByType')
+    def getConferenceSessionByType(self, request):
+        """Return all sessions of a given type, e.g. lecture, keynote, workshop"""
+        # Get type of session
+        typeOfSession = request.typeOfSession
+        # Fetch conference with target key
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        # Check the validity of conference
+        if not conf:
+            raise endpoints.NotFoundException('No conference is found')
+        # Create ancestor query for all key matches
+        sessions = Session.query().filter(Session.typeOfSession==typeOfSession,
+                        Session.websafeConferenceKey==request.websafeConferenceKey)
+        # Return set of SessionForm objects
+        return SessionForms(items=[self._copySessionToForm(session)
+                                            for session in Sessions])
 
+    @endpoints.method(SESSION_GET_BY_SPEAKER_REQUEST, SessionForms,
+                  path='/sessions/{speaker}',
+                  http_method='GET', name='getSessionBySpeaker')
+    def getSessionsBySpeaker(self, request):
+        """Return all sessions of a given speaker"""
+        sessions= Session.query().filter(Session.speaker==request.speaker)
+        # Return set of SessionForm objects
+        return SessionForms(items=[self._copySessionToForm(session)
+                                   for session in Sessions])
+
+    
 
 
 
