@@ -20,22 +20,12 @@ from protorpc import messages
 from protorpc import message_types
 from protorpc import remote
 
+from google.appengine.api import urlfetch
 from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
-from models import ConflictException
-from models import Profile
-from models import ProfileMiniForm
-from models import ProfileForm
-from models import StringMessage
-from models import BooleanMessage
-from models import Conference
-from models import ConferenceForm
-from models import ConferenceForms
-from models import ConferenceQueryForm
-from models import ConferenceQueryForms
-from models import TeeShirtSize
+from models import *
 
 from settings import WEB_CLIENT_ID
 from settings import ANDROID_CLIENT_ID
@@ -47,6 +37,7 @@ from utils import getUserId
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+MEMCACHE_FEATURED_SPEAKER_KEY = "FEATURED_SPEAKER"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -82,6 +73,22 @@ CONF_GET_REQUEST = endpoints.ResourceContainer(
 CONF_POST_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
     websafeConferenceKey=messages.StringField(1),
+)
+
+SESSION_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    sessionKey=messages.StringField(1),
+)
+
+SESSION_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    typeOfSession=messages.StringField(1),
+    websafeConferenceKey=messages.StringField(2),
+    )
+
+SESSION_GET_BY_SPEAKER_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    speaker=messages.StringField(1),
 )
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -529,6 +536,17 @@ class ConferenceApi(remote.Service):
             profile.put()
         return  BooleanMessage(data=True)
 
+    @endpoints.method(message_types.VoidMessage, StringMessage,
+                  path='speaker/get_features',
+                  http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Get all featured speakers and return json data"""
+        featuredSpeaker = memcache.get(MEMCACHE_FEATURED_SPEAKER_KEY)
+        if not featuredSpeaker:
+            featuredSpeaker = ""
+        # return json data
+        return StringMessage(data=json.dumps(featuredSpeaker))
+
 
 
 
@@ -643,6 +661,25 @@ class ConferenceApi(remote.Service):
     def getAnnouncement(self, request):
         """Return Announcement from memcache."""
         return StringMessage(data=memcache.get(MEMCACHE_ANNOUNCEMENTS_KEY) or "")
+
+    @staticmethod
+    def _cacheFeaturedSpeaker():
+        """Get Featured Speaker & assign to memcache;"""
+        sessions = Session.query()
+        speakersCounter = {}
+        featured_speaker = ""
+        num = 0
+        for session in sessions:
+            if session.speaker:
+                if session.speaker not in speakersCounter:
+                    speakersCounter[session.speaker] = 1
+                else:
+                    speakersCounter[session.speaker] += 1
+                if speakersCounter[session.speaker] > num:
+                    featured_speaker = session.speaker
+                    num = speakersCounter[session.speaker]
+        memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, featured_speaker)
+        return featured_speaker
 
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
