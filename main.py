@@ -38,6 +38,26 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
         )
 
 
+class SendConfirmationOfSessionEmailHandler(webapp2.RequestHandler):
+    def post(self):
+        """Send email confirming Conference creation."""
+        mail.send_mail(
+            'noreply@%s.appspotmail.com' % (
+                app_identity.get_application_id()),     # from
+                self.request.get('email'),                  # to
+                'You created a new Session!',            # subj
+                'Hi, you have created a new Session in the following '         # body
+                'conference:\r\n\r\n%s' % self.request.get('conferenceInfo')
+            )
+
+
+class CheckFeaturedSpeakerHandler(webapp2.RequestHandler):
+    def get(self):
+        """Set FeaturedSpeaker in Memcache."""
+        ConferenceApi._cacheFeaturedSpeaker()
+        self.response.set_status(204)
+
+
 app = webapp2.WSGIApplication([
     ('/crons/set_announcement', SetAnnouncementHandler),
     ('/tasks/send_confirmation_email', SendConfirmationEmailHandler),
